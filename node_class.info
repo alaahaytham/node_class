@@ -1,0 +1,4 @@
+; $Id;
+name = Node Class
+description = Allows assigning CSS classes to nodes.
+core = 7.x
