@@ -5,9 +5,7 @@
  */
 
 function node_class_preprocess_node(&$vars) {
-  $node = $vars['node'];
-  $classes = node_class($node);
-  $vars['classes_array'] = array_merge($vars['classes_array'], explode(' ', $classes));
+
 }
 
 
@@ -28,15 +26,11 @@ function node_class_permission() {
  */
 	
 function node_class_attributes($node) {
-  $ret = db_query('SELECT css_class FROM {node_class} WHERE nid = :nid', array(':nid' => '$node->nid'))->fetchObject();
+	$ret = array();
+	$ret = db_query('SELECT nid , css_class FROM {node_class} WHERE nid = :nid', array(':nid' => $node->nid))->fetchAssoc();
+	//die(print_r($ret));
   return $ret ? $ret : '';
 }
-
-// Creating NULL object
-$undef = (object) NULL;
-$under->css_class = '';
-$under->nid = 0;
-return $undef;
 
 /*
  * implementation of hook_form_alter
@@ -52,22 +46,27 @@ function node_class_form_alter(&$form, &$form_state, $form_id) {
 			'#weight' => -1,
 			'#tree' => TRUE
 		);
-
-	// get css attributes information
+ 
+	 //get css attributes information
 	$attributes = node_class_attributes($form['#node']);
-	
-	// check CSS exists in DB to prepare SQL update
-	if ($attributes->nid) {
+	//die(print_r($form['#node']));
+	 //check CSS exists in DB to prepare SQL update
+	if (!empty($attributes)) {
 		$form['node_class']['existing_css'] = array(
-			'#type' => 'hidden',
-			'#value' => '1'
+			'#value' => 1,
+			'#type' => 'hidden'
+		);
+	}
+	else {
+		$form['node_class']['existing_css'] = array(
+			'#value' => false,
 		);
 	}
 	
 	$form['node_class']['css_class'] = array(
     '#type' => 'textfield',
     '#title' => t('CSS class(es)'),
-    '#default_value' => $attributes->css_class,
+    '#default_value' => $attributes ? $attributes['css_class'] : '',
     '#description' => t('Separate classes with a space. IMPORTANT: You must add &lt;?php print node_class($node); ?&gt; to your theme\'s node.tpl.php file to make the classes appear.'),		
 	);
 	
@@ -83,9 +82,8 @@ function node_class_form_alter(&$form, &$form_state, $form_id) {
  */
 
 function node_class_node_delete($node) {
-	db_select('node_class');
 	db_delete('node_class')
-	->condition('nid', $nid)
+	->condition('nid', $node->nid)
 	->execute();
 }
 
@@ -100,25 +98,28 @@ function node_class_form_submit($form, &$form_state) {
       $class = check_plain($form_state['values']['node_class']['css_class']);
       
       // CRUD test
-      if (!isset($form_state['values']['node_class']['existing_css']))  {
-        if (!empty($class)) {
-          db_insert('node_class')
-          ->fields(array(
-          	'nid' => $nid, 
-          	'css_class' => $class
-          ))
-          ->execute();
-        }
-      else {
-        db_update('node_class')
+      if (!isset($form_state['values']['node_class']['existing_class'])) {
+      	if ($class) {
+        		db_insert('node_class')
+          	->fields(array(
+          		'nid' => $nid,
+          		'css_class' => $class
+          	))
+          	->execute();
+        	}
+        
+      }
+      
+        elseif (isset($form_state['values']['node_class']['existing_class'])) {
+        	db_update('node_class')
         ->fields(array(
-        	'css_class' => $class
+        	'css_class' => $class,
         ))
-        ->condition('nid', $nid, '=')
+        ->condition('nid', $node->nid)
         ->execute();
        }
-      }
-     }
+    }
+     
    }
 }
 
@@ -128,5 +129,7 @@ function node_class_form_submit($form, &$form_state) {
 
 function node_class($node) {
   $attributes = node_class_attributes($node);
-  return $attributes->css_class;
+  if ($attributes) {
+  return $attributes['css_class'];
+  }
 }
